@@ -1,61 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, PhoneCall, PhoneForwarded, PhoneOff, MessageSquare, 
-  Volume2, VolumeX, Mic, Bot, User, CheckCircle2, MapPin, Sparkles 
+  MapPin, CheckCircle2, AlertCircle, Bot, User 
 } from 'lucide-react';
 
 export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, onTriggerWhatsApp }) {
   const [customerName, setCustomerName] = useState('Rajesh Contractor');
   const [customerPhone, setCustomerPhone] = useState('+91 98XXXXXXXX');
-  const [siteLocation, setSiteLocation] = useState('Sector 62, Noida (Near Metro Station)');
+  const [siteLocation, setSiteLocation] = useState('Sector 82, Mohali');
+  const [isOutsideTricity, setIsOutsideTricity] = useState(false);
   const [quantitySheets, setQuantitySheets] = useState(35);
-  const [orderValue, setOrderValue] = useState(48000);
 
   const [callState, setCallState] = useState('idle'); // idle, ringing, connected, transferring, bridged, ended
   const [messages, setMessages] = useState([]);
   const [executiveAlertReceived, setExecutiveAlertReceived] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [selectedVoiceName, setSelectedVoiceName] = useState('');
 
   const messagesEndRef = useRef(null);
-  const recognitionRef = useRef(null);
-
-  // Pick the best natural human-like voice available in the browser
-  const getBestNaturalVoice = () => {
-    if (!('speechSynthesis' in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    
-    // Priority: Natural Neural voices
-    const naturalHindi = voices.find(v => (v.name.includes('Natural') || v.name.includes('Online')) && (v.lang.includes('hi') || v.lang.includes('IN')));
-    if (naturalHindi) return naturalHindi;
-
-    const googleHindi = voices.find(v => v.name.includes('Google') && (v.lang.includes('hi') || v.lang.includes('IN')));
-    if (googleHindi) return googleHindi;
-
-    const anyIndian = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.lang.includes('en-IN'));
-    if (anyIndian) return anyIndian;
-
-    return voices[0] || null;
-  };
 
   const speakText = (text, onEnd) => {
-    if (isMuted || !('speechSynthesis' in window)) {
+    if (!('speechSynthesis' in window)) {
       if (onEnd) onEnd();
       return;
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Human-like cadence: slightly softer pitch & relaxed tempo
-    utterance.rate = 0.92;
-    utterance.pitch = 1.05;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
 
-    const bestVoice = getBestNaturalVoice();
-    if (bestVoice) {
-      utterance.voice = bestVoice;
-      setSelectedVoiceName(bestVoice.name);
-    }
+    const voices = window.speechSynthesis.getVoices();
+    const match = voices.find(v => (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google')) && (v.lang.includes('hi') || v.lang.includes('IN')));
+    if (match) utterance.voice = match;
 
     utterance.onend = () => { if (onEnd) onEnd(); };
     utterance.onerror = () => { if (onEnd) onEnd(); };
@@ -63,7 +37,6 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
     window.speechSynthesis.speak(utterance);
   };
 
-  // Start Voice Call
   const startVoiceCall = () => {
     window.speechSynthesis?.cancel();
     setCallState('ringing');
@@ -72,59 +45,81 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
 
     setTimeout(() => {
       setCallState('connected');
-      const opening = `Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon. Bataiye aapko commercial plywood, marine grade 710, ya blockboards me kya requirement hai?`;
+      // Short 1-sentence opening
+      const opening = `Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon, bataiye kis item ki inquiry thi?`;
       
       setMessages([{ speaker: 'ai', text: opening }]);
       speakText(opening, () => {
-        // AI directly asks for site location and quantity in the conversation
-        setTimeout(() => {
-          runStepByStepFlow();
-        }, 1200);
+        setTimeout(runShortConversationalFlow, 1000);
       });
-    }, 1000);
+    }, 800);
   };
 
-  // Step-by-Step realistic Sri Sri Plywood dialogue asking for Site Location
-  const runStepByStepFlow = () => {
-    // Customer asks for 19mm marine
-    const cust1 = `Haan Pooja ji, mujhe 19mm waterproof marine grade 710 plywood chahiye modular kitchen ke liye. Rate kya padega?`;
+  // Short, punchy, answer-first natural dialogue
+  const runShortConversationalFlow = () => {
+    // 1. Customer asks rate directly
+    const cust1 = `19mm marine grade 710 plywood ka kya rate chal raha hai?`;
     setMessages(prev => [...prev, { speaker: 'lead', text: cust1 }]);
 
     setTimeout(() => {
-      // AI specifically asks for SITE LOCATION and SHEET COUNT
-      const aiAskLocation = `Zaroor sir! Hamara IS 710 marine plywood 100% waterproof gurjan core me aata hai. Best rate aur delivery arrange karne ke liye, kya aap bata sakte hain ki aapko kitni sheets chahiye aur aapki site kahan par chal rahi hai?`;
-      setMessages(prev => [...prev, { speaker: 'ai', text: aiAskLocation }]);
+      // 2. AI answers rate FIRST (no beating around the bush) + asks 1 short location question
+      const aiReply1 = `Sir 19mm marine IS 710 approx ₹88 se ₹95 per square foot padega. Aapki site Tricity me kahan par chal rahi hai?`;
+      setMessages(prev => [...prev, { speaker: 'ai', text: aiReply1 }]);
 
-      speakText(aiAskLocation, () => {
-        // Customer gives site location
+      speakText(aiReply1, () => {
         setTimeout(() => {
-          const custLocationAns = `Mujhe lagbhag ${quantitySheets} sheets chahiye, aur hamari site ${siteLocation} me chal rahi hai. Delivery ho jayegi na wahan?`;
-          setMessages(prev => [...prev, { speaker: 'lead', text: custLocationAns }]);
+          if (isOutsideTricity) {
+            // Outside Tricity Scenario
+            const custLocOut = `Hamari site Ludhiana me chal rahi hai.`;
+            setMessages(prev => [...prev, { speaker: 'lead', text: custLocOut }]);
+
+            setTimeout(() => {
+              const aiOutside = `Sir hum delivery sirf Mohali Tricity area me hi karte hain. Agar aap transport khud arrange kar sakein, toh hum dispatch karwa denge.`;
+              setMessages(prev => [...prev, { speaker: 'ai', text: aiOutside }]);
+              speakText(aiOutside, () => setCallState('ended'));
+            }, 1200);
+            return;
+          }
+
+          // Inside Tricity (Mohali) Scenario
+          const custLocIn = `Hamari site ${siteLocation} me hai.`;
+          setMessages(prev => [...prev, { speaker: 'lead', text: custLocIn }]);
 
           setTimeout(() => {
-            // AI acknowledges location and connects call to owner
-            const aiTransfer = `Ji bilkul sir, ${siteLocation} par hamari direct transport delivery ho jayegi! Aapka order 30 sheets se upar hai, isliye special wholesale discount finalize karne ke liye main call seedha hamare sales head (${handoverConfig.executivePhone || 'aapke phone'}) ko connect kar rahi hoon. Aapki site details maine unhe WhatsApp par bhej di hain!`;
-            
-            setMessages(prev => [...prev, { speaker: 'ai', text: aiTransfer }]);
-            speakText(aiTransfer, () => {
-              setCallState('transferring');
-              setExecutiveAlertReceived(true);
-              if (onTriggerWhatsApp) onTriggerWhatsApp();
+            // 3. AI confirms location & asks quantity in just 1 short line
+            const aiReply2 = `Sahi hai sir, Mohali me toh direct delivery ho jayegi. Lagbhag kitni sheets ki requirement hai aapko?`;
+            setMessages(prev => [...prev, { speaker: 'ai', text: aiReply2 }]);
 
+            speakText(aiReply2, () => {
               setTimeout(() => {
-                setCallState('bridged');
-                speakText(`Sri Sri Plywood Transfer: Customer ${customerName}, site location ${siteLocation}, 35 sheets order.`);
-              }, 2000);
+                const custQty = `Lagbhag ${quantitySheets} sheets chahiye.`;
+                setMessages(prev => [...prev, { speaker: 'lead', text: custQty }]);
+
+                setTimeout(() => {
+                  // 4. AI closes and transfers call in 1 punchy sentence
+                  const aiTransfer = `Done sir! ${quantitySheets} sheets par wholesale rate mil jayega. Main aapki call abhi hamare owner se connect kar rahi hoon.`;
+                  setMessages(prev => [...prev, { speaker: 'ai', text: aiTransfer }]);
+
+                  speakText(aiTransfer, () => {
+                    setCallState('transferring');
+                    setExecutiveAlertReceived(true);
+                    if (onTriggerWhatsApp) onTriggerWhatsApp();
+
+                    setTimeout(() => {
+                      setCallState('bridged');
+                    }, 1800);
+                  });
+                }, 1000);
+              }, 1200);
             });
-          }, 1500);
-        }, 1500);
+          }, 1200);
+        }, 1200);
       });
-    }, 1500);
+    }, 1200);
   };
 
   const endCall = () => {
     window.speechSynthesis?.cancel();
-    if (recognitionRef.current) recognitionRef.current.abort();
     setCallState('idle');
   };
 
@@ -133,127 +128,110 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
   }, [messages]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Title */}
+    <div className="max-w-5xl mx-auto space-y-5">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-white tracking-tight">Sri Sri Plywood · AI Call Center</h1>
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded border border-emerald-500/20">
-              Site Location Verification
+          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <span>Sri Sri Plywood · Mohali Tricity Engine</span>
+            <span className="text-[10px] bg-indigo-500/10 text-indigo-400 font-semibold px-2 py-0.5 rounded border border-indigo-500/20">
+              Short Natural Turns
             </span>
-          </div>
+          </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            AI customer se <strong>item, quantity aur site location</strong> pooch kar aapke phone aur WhatsApp par forward karega.
+            AI direct rate batayega aur sirf <strong>Mohali / Tricity</strong> ki delivery check karke call connect karega.
           </p>
         </div>
 
-        {/* Buttons */}
-        <div className="flex items-center gap-2">
-          {callState !== 'idle' ? (
-            <button
-              onClick={endCall}
-              className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <PhoneOff className="h-3.5 w-3.5" />
-              <span>Cut Call</span>
-            </button>
-          ) : (
-            <button
-              onClick={startVoiceCall}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-600/20"
-            >
-              <PhoneCall className="h-3.5 w-3.5" />
-              <span>Start Call Demo (Site Location Check)</span>
-            </button>
-          )}
-        </div>
+        {callState !== 'idle' ? (
+          <button
+            onClick={endCall}
+            className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <PhoneOff className="h-3.5 w-3.5" />
+            <span>End Call</span>
+          </button>
+        ) : (
+          <button
+            onClick={startVoiceCall}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+          >
+            <PhoneCall className="h-3.5 w-3.5" />
+            <span>Start Short-Turn Call</span>
+          </button>
+        )}
       </div>
 
-      {/* Voice Quality Notice */}
-      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-start gap-2.5">
-        <Sparkles className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-white">Voice Quality Update:</span>
-          <p className="text-slate-400 text-[11px] mt-0.5">
-            Browser me Windows ka default robotic engine chalne ki wajah se aawaz mechanical aati hai. 
-            Real phone call me hum **ElevenLabs "Aditi" (Human Natural Indian Girl Voice)** use karte hain jo 100% human lagti hai aur saans lene ka natural pause rehta hai!
-          </p>
-        </div>
-      </div>
-
-      {/* Site Location & Customer Configuration */}
-      <div className="rounded-xl bg-slate-900 border border-slate-800/80 p-4">
+      {/* Tricity Settings Bar */}
+      <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div>
-            <label className="text-slate-400 block mb-1">Customer / Contractor</label>
+            <label className="text-slate-400 block mb-1">Customer Name</label>
             <input
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700/80 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"
+              className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"
             />
           </div>
 
           <div>
             <label className="text-slate-400 block mb-1 flex items-center gap-1 text-emerald-400 font-medium">
               <MapPin className="h-3.5 w-3.5" />
-              <span>Site / Project Location (AI poochega)</span>
+              <span>Site Location (Tricity Only)</span>
             </label>
-            <input
-              type="text"
-              value={siteLocation}
-              onChange={(e) => setSiteLocation(e.target.value)}
-              placeholder="e.g. Sector 62 Noida / Civil Lines"
-              className="w-full bg-slate-950 border border-emerald-500/60 text-white rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
-            />
+            <select
+              value={isOutsideTricity ? 'outside' : siteLocation}
+              onChange={(e) => {
+                if (e.target.value === 'outside') {
+                  setIsOutsideTricity(true);
+                } else {
+                  setIsOutsideTricity(false);
+                  setSiteLocation(e.target.value);
+                }
+              }}
+              className="w-full bg-slate-950 border border-emerald-500/50 text-white rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
+            >
+              <option value="Sector 82, Mohali (JLPL)">Sector 82, Mohali (Tricity Delivery ✅)</option>
+              <option value="Sector 70, Mohali">Sector 70, Mohali (Tricity Delivery ✅)</option>
+              <option value="Zirakpur (VIP Road)">Zirakpur VIP Road (Tricity Delivery ✅)</option>
+              <option value="Panchkula Sector 20">Panchkula Sector 20 (Tricity Delivery ✅)</option>
+              <option value="Kharar (Landran Road)">Kharar (Tricity Delivery ✅)</option>
+              <option value="outside">Ludhiana / Outside Tricity (Test Rejection ❌)</option>
+            </select>
           </div>
 
           <div>
-            <label className="text-slate-400 block mb-1">Quantity Required</label>
+            <label className="text-slate-400 block mb-1">Sheets Needed</label>
             <select
               value={quantitySheets}
-              onChange={(e) => {
-                const qty = Number(e.target.value);
-                setQuantitySheets(qty);
-                setOrderValue(qty * 1400); // 1400 per sheet approx
-              }}
-              className="w-full bg-slate-950 border border-slate-700/80 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"
+              onChange={(e) => setQuantitySheets(Number(e.target.value))}
+              className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 outline-none focus:border-indigo-500"
             >
-              <option value={10}>10 Sheets (Retail Order - Send WhatsApp)</option>
-              <option value={35}>35 Sheets (Wholesale - Transfer to Owner)</option>
-              <option value={80}>80 Sheets (Contractor Project - High Priority)</option>
+              <option value={10}>10 Sheets (Retail)</option>
+              <option value={35}>35 Sheets (Wholesale Order)</option>
+              <option value={75}>75 Sheets (Contractor Bulk)</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Call Screen & WhatsApp Summary with Location */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Call Screen */}
-        <div className="lg:col-span-7 rounded-xl bg-slate-900 border border-slate-800/80 overflow-hidden">
-          <div className="p-3.5 border-b border-slate-800 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${
-                callState === 'connected' ? 'bg-emerald-400 animate-ping' :
-                callState === 'transferring' ? 'bg-amber-400 animate-bounce' :
-                callState === 'bridged' ? 'bg-emerald-400' : 'bg-slate-600'
-              }`} />
-              <span className="font-semibold text-white">
-                {callState === 'idle' && 'Click Start Call Demo above'}
-                {callState === 'ringing' && 'Connecting to Sri Sri Plywood AI...'}
-                {callState === 'connected' && 'Pooja (AI) Asking Requirement & Location...'}
-                {callState === 'transferring' && 'BRIDGING CALL TO YOU WITH LOCATION...'}
-                {callState === 'bridged' && 'CONNECTED TO YOUR PHONE'}
-              </span>
-            </div>
+      {/* Grid: Call Screen & WhatsApp Output */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left: Chat Transcript Feed */}
+        <div className="lg:col-span-7 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
+          <div className="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
+            <span className="font-semibold text-white flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${callState === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'}`} />
+              Pooja (Sri Sri Plywood AI)
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">Short Conversational Turns</span>
           </div>
 
-          <div className="p-4 h-72 overflow-y-auto space-y-3 bg-slate-950/70">
+          <div className="p-4 h-64 overflow-y-auto space-y-2.5 bg-slate-950/70">
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs space-y-2">
-                <PhoneCall className="h-8 w-8 text-slate-600 animate-pulse" />
-                <p>Upar <strong>"Start Call Demo"</strong> button dabayein!</p>
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+                <span>Click "Start Short-Turn Call" above to test natural conversation</span>
               </div>
             )}
 
@@ -262,13 +240,13 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
                 key={i}
                 className={`flex items-start gap-2 ${msg.speaker === 'ai' ? 'justify-start' : 'justify-end'}`}
               >
-                <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
                   msg.speaker === 'ai'
                     ? 'bg-slate-900 border border-slate-800 text-slate-200'
                     : 'bg-emerald-600 text-white font-medium'
                 }`}>
                   <span className="block text-[10px] font-semibold opacity-60 mb-0.5">
-                    {msg.speaker === 'ai' ? 'Pooja (Sri Sri Plywood AI)' : customerName}
+                    {msg.speaker === 'ai' ? 'Pooja (AI)' : customerName}
                   </span>
                   {msg.text}
                 </div>
@@ -278,42 +256,37 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
           </div>
         </div>
 
-        {/* Right: WhatsApp Alert With Exact Location */}
-        <div className="lg:col-span-5 space-y-3">
+        {/* Right: Instant WhatsApp Alert */}
+        <div className="lg:col-span-5 space-y-2">
           <div className="text-xs font-semibold text-slate-300">
-            Aapke WhatsApp par Site Location ke sath ye aayega:
+            Aapke WhatsApp par Tricity Lead Alert:
           </div>
 
-          <div className="bg-[#0b141a] rounded-xl p-3.5 border border-[#202c33] text-xs font-sans min-h-60">
+          <div className="bg-[#0b141a] rounded-xl p-3.5 border border-[#202c33] text-xs font-sans min-h-56">
             {executiveAlertReceived ? (
               <div className="bg-[#005c4b] text-[#e9edef] rounded-xl p-3 space-y-2 shadow animate-fadeIn">
                 <div className="flex items-center justify-between text-amber-300 font-bold text-[11px] border-b border-emerald-700/60 pb-1">
-                  <span>🪵 SRI SRI PLYWOOD - LEAD ALERT</span>
-                  <span className="text-[9px] text-emerald-200 font-normal">Now</span>
+                  <span>🪵 SRI SRI PLYWOOD - TRICITY LEAD</span>
+                  <span className="text-[9px] text-emerald-200">Just Now</span>
                 </div>
 
-                <div className="space-y-1 text-[11px]">
+                <div className="space-y-0.5 text-[11px]">
                   <div>👤 <strong>Customer:</strong> {customerName}</div>
                   <div>📞 <strong>Phone:</strong> {customerPhone}</div>
-                  <div>🪵 <strong>Requirement:</strong> 19mm Marine Grade IS 710</div>
-                  <div className="text-amber-200 font-bold">📍 <strong>Site Location:</strong> {siteLocation}</div>
+                  <div>🪵 <strong>Item:</strong> 19mm Marine IS 710</div>
+                  <div className="text-amber-200 font-bold">📍 <strong>Site:</strong> {siteLocation} (Tricity Verified)</div>
                   <div>📦 <strong>Quantity:</strong> {quantitySheets} Sheets</div>
-                  <div>💰 <strong>Order Est:</strong> ₹{orderValue.toLocaleString('en-IN')} (Wholesale)</div>
-                </div>
-
-                <div className="bg-[#025142] p-2 rounded text-[10px] text-emerald-100 border border-emerald-600/40">
-                  <strong>AI Call Summary:</strong> Customer ko {siteLocation} par {quantitySheets} sheets delivery chahiye. Call aapke number par bridge ho rahi hai!
                 </div>
 
                 <div className="text-[10px] text-amber-200 font-bold pt-0.5">
-                  ⚡ Calling your phone right now. Pick up with location context!
+                  ⚡ Call connecting to your mobile now. Pick up!
                 </div>
               </div>
             ) : (
-              <div className="h-52 flex flex-col items-center justify-center text-slate-600 text-center text-xs space-y-1">
+              <div className="h-44 flex flex-col items-center justify-center text-slate-600 text-center text-xs space-y-1">
                 <MessageSquare className="h-6 w-6 text-slate-700" />
-                <p className="max-w-[200px]">
-                  Jaise hi customer site location aur quantity confirm karega, summary yahan trigger hogi!
+                <p className="max-w-[190px]">
+                  Tricity customer verify hote hi summary yahan pop up hogi.
                 </p>
               </div>
             )}
