@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, PhoneCall, PhoneForwarded, PhoneOff, MessageSquare, 
-  MapPin, CheckCircle2, AlertCircle, Bot, User, Mic, Volume2, Music, Upload 
+  MapPin, CheckCircle2, AlertCircle, Bot, User, Mic, Sparkles 
 } from 'lucide-react';
 
 export default function LiveSimulatorView({ 
   rules, 
   handoverConfig, 
   voiceConfig, 
-  customVoiceAudio,
-  customVoiceFileName,
   onTriggerWhatsApp,
   onNavigateToVoice
 }) {
@@ -22,47 +20,63 @@ export default function LiveSimulatorView({
   const [callState, setCallState] = useState('idle'); // idle, ringing, connected, transferring, bridged, ended
   const [messages, setMessages] = useState([]);
   const [executiveAlertReceived, setExecutiveAlertReceived] = useState(false);
-  const [isPlayingMyAudio, setIsPlayingMyAudio] = useState(false);
+  const [isSpeakingElevenLabs, setIsSpeakingElevenLabs] = useState(false);
 
   const messagesEndRef = useRef(null);
   const activeAudioRef = useRef(null);
 
-  // Play audio turn: PRIORITIZE USER'S UPLOADED AUDIO FILE!
-  const playAiVoiceTurn = (text, onEnd) => {
-    // 1. If user uploaded a custom voice file, ALWAYS play their uploaded voice file!
-    if (customVoiceAudio) {
-      if (activeAudioRef.current) {
-        activeAudioRef.current.pause();
-        activeAudioRef.current.currentTime = 0;
-      }
+  const isElevenLabsReady = Boolean(voiceConfig?.elevenLabsApiKey && voiceConfig?.customVoiceId);
 
+  // Dynamic Audio Speech Generator
+  const playAiVoiceTurn = async (text, onEnd) => {
+    // 1. If ElevenLabs is configured, generate dynamic speech in user's cloned voice!
+    if (isElevenLabsReady) {
+      setIsSpeakingElevenLabs(true);
       try {
-        const audio = new Audio(customVoiceAudio);
-        activeAudioRef.current = audio;
-        setIsPlayingMyAudio(true);
-
-        audio.onended = () => {
-          setIsPlayingMyAudio(false);
-          if (onEnd) onEnd();
-        };
-
-        audio.onerror = () => {
-          setIsPlayingMyAudio(false);
-          fallbackBrowserSpeech(text, onEnd);
-        };
-
-        audio.play().catch(() => {
-          setIsPlayingMyAudio(false);
-          fallbackBrowserSpeech(text, onEnd);
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceConfig.customVoiceId.trim()}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': voiceConfig.elevenLabsApiKey.trim(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.85
+            }
+          })
         });
-        return;
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          activeAudioRef.current = audio;
+
+          audio.onended = () => {
+            setIsSpeakingElevenLabs(false);
+            if (onEnd) onEnd();
+          };
+          audio.onerror = () => {
+            setIsSpeakingElevenLabs(false);
+            fallbackBrowserSpeech(text, onEnd);
+          };
+
+          audio.play().catch(() => {
+            setIsSpeakingElevenLabs(false);
+            fallbackBrowserSpeech(text, onEnd);
+          });
+          return;
+        }
       } catch (err) {
-        fallbackBrowserSpeech(text, onEnd);
-        return;
+        console.warn('ElevenLabs API failed, using natural browser fallback', err);
       }
+      setIsSpeakingElevenLabs(false);
     }
 
-    // 2. Fallback to browser speech only if no file is uploaded
+    // 2. Fallback to browser speech if ElevenLabs key is not added
     fallbackBrowserSpeech(text, onEnd);
   };
 
@@ -98,7 +112,7 @@ export default function LiveSimulatorView({
 
     setTimeout(() => {
       setCallState('connected');
-      const opening = `Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon, bataiye kis item ki inquiry thi?`;
+      const opening = `Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja bol rahi hoon, bataiye kis item ki inquiry thi?`;
       
       setMessages([{ speaker: 'ai', text: opening }]);
       playAiVoiceTurn(opening, () => {
@@ -172,7 +186,7 @@ export default function LiveSimulatorView({
       activeAudioRef.current.currentTime = 0;
     }
     setCallState('idle');
-    setIsPlayingMyAudio(false);
+    setIsSpeakingElevenLabs(false);
   };
 
   useEffect(() => {
@@ -211,32 +225,32 @@ export default function LiveSimulatorView({
         )}
       </div>
 
-      {/* Voice Status Indicator Banner */}
-      {customVoiceAudio ? (
+      {/* Dynamic Voice Status Banner */}
+      {isElevenLabsReady ? (
         <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2 text-emerald-300 font-medium">
             <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
             <span>
-              Voice Source: <strong>Aapki Uploaded Audio File Active Hai ({customVoiceFileName || 'Custom Voice'})</strong>
+              Voice Engine: <strong>ElevenLabs Dynamic Cloned Voice Active</strong> (AI will speak its own dynamic words in your cloned voice!)
             </span>
           </div>
           <span className="text-[10px] bg-emerald-500 text-slate-950 px-2 py-0.5 rounded font-bold">
-            NO ROBOTIC VOICE
+            DYNAMIC VOICE CLONE
           </span>
         </div>
       ) : (
-        <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs flex items-center justify-between text-amber-300">
+        <div className="p-3.5 rounded-xl bg-indigo-500/15 border border-indigo-500/40 text-xs flex items-center justify-between text-indigo-300">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+            <Mic className="h-4 w-4 text-indigo-400 shrink-0" />
             <span>
-              Aapne abhi custom audio upload nahi ki hai, isliye browser default aawaz bol raha hai.
+              Static file bajane ke badle <strong>AI ko apni aawaz me naye shabd sikhane ke liye</strong> ElevenLabs connect karein.
             </span>
           </div>
           <button
             onClick={onNavigateToVoice}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-3 py-1 rounded transition cursor-pointer"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded transition cursor-pointer"
           >
-            Upload My Audio File Now
+            Connect Voice Clone API
           </button>
         </div>
       )}
@@ -302,12 +316,12 @@ export default function LiveSimulatorView({
           <div className="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${callState === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'}`} />
-              <span>Voice: {customVoiceFileName ? `Playing "${customVoiceFileName}"` : 'Default Voice'}</span>
+              <span>Voice: {isElevenLabsReady ? 'Your Cloned Neural Voice (ElevenLabs)' : 'Standard Voice'}</span>
             </span>
-            {isPlayingMyAudio && (
+            {isSpeakingElevenLabs && (
               <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
-                <Music className="h-3 w-3" />
-                <span>Playing Your Custom Audio...</span>
+                <Sparkles className="h-3 w-3" />
+                <span>Generating dynamic speech in your voice...</span>
               </span>
             )}
           </div>
@@ -330,7 +344,7 @@ export default function LiveSimulatorView({
                     : 'bg-emerald-600 text-white font-medium'
                 }`}>
                   <span className="block text-[10px] font-semibold opacity-60 mb-0.5">
-                    {msg.speaker === 'ai' ? (customVoiceFileName ? 'AI (Your Cloned Voice)' : 'Pooja (AI)') : customerName}
+                    {msg.speaker === 'ai' ? 'Pooja (AI)' : customerName}
                   </span>
                   {msg.text}
                 </div>
