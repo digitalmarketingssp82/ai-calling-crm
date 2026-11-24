@@ -1,6 +1,6 @@
 export const defaultQualificationRules = {
-  minBudget: 25000, // ₹25,000 minimum order size for wholesale/direct transfer
-  maxTimelineDays: 15, // Urgent / within 15 days
+  minBudget: 25000,
+  maxTimelineDays: 15,
   requireDecisionMaker: true,
   minScoreThreshold: 75,
   disallowedKeywords: [
@@ -21,9 +21,10 @@ export const defaultHandoverConfig = {
 👤 *Customer:* {lead_name}
 📞 *Phone:* {phone}
 🪵 *Item Required:* {requirement}
+📍 *Site Location:* {site_location}
+📦 *Quantity:* {quantity} Sheets
 💰 *Estimated Order:* ₹{budget}
-⏰ *Requirement Time:* {timeline}
-⭐ *AI Score:* {score}% (High Intent Buyer)
+⏰ *Timeline:* {timeline}
 
 📝 *AI Call Summary:*
 {ai_summary}
@@ -35,29 +36,25 @@ export const defaultVoiceConfig = {
   agentName: 'Pooja (Sri Sri Plywood)',
   companyName: 'Sri Sri Plywood',
   role: 'AI Relationship Executive',
-  voicePreset: 'Hinglish Female (Natural)',
-  speakingRate: 1.0,
+  voicePreset: 'ElevenLabs Aditi (Human Natural Indian)',
+  speakingRate: 0.95,
   language: 'Hinglish (Hindi + English)',
-  greeting: 'Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon. Bataiye aapko commercial plywood, marine grade 710, ya flush doors me kya requirement hai?',
+  greeting: 'Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon. Bataiye aapko commercial plywood, marine grade 710, ya blockboards me kya requirement hai?',
   productsKnowledge: [
     'Commercial MR Grade Plywood (IS 303) - 6mm, 9mm, 12mm, 16mm, 19mm',
     'Marine Grade Waterproof Plywood (IS 710) - Gurjan / Alternate Core with 25 yrs warranty',
     'Calibrated Plywood for Modular Kitchen & Wardrobes',
     'Flush Doors & Blockboards',
-    'Decorative Laminates & Sunmica Sheets (1mm & 0.8mm)'
+    'Decorative Laminates & Sunmica Sheets'
   ],
   objectionHandling: [
     {
       trigger: 'Rate bohot zyada hai / Discount chahiye',
-      response: 'Sir hamara plywood direct factory pricing par 100% full gurjan core aur IS 710 certified hai. Agar aapka order 20 sheets ya wholesale quantity ka hai, toh hamare sales head aapko best bulk discount offer de sakte hain.'
+      response: 'Sir hamara plywood direct factory pricing par 100% full gurjan core aur IS 710 certified hai. Agar aapka order wholesale quantity ka hai, toh hamare sales head direct best discount confirm karenge.'
     },
     {
       trigger: 'Delivery charges kitne honge?',
-      response: 'Sir aapki location par depend karta hai. Bulk orders par hum direct site delivery arrange karwate hain. Aapki site kahan par hai?'
-    },
-    {
-      trigger: 'Bhaiya mujhe owner se baat karni hai',
-      response: 'Ji bilkul sir! Main abhi hamare Senior Sales Manager ko ye call connect kar rahi hoon. Kripya 5 second line par bane rahein.'
+      response: 'Sir delivery charges aapki site location par depend karte hain. Bulk orders par hum direct truck transport arrange karwate hain.'
     }
   ]
 };
