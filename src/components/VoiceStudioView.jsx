@@ -1,108 +1,72 @@
-import React, { useState } from 'react';
-import { Sparkles, Play, Square, Save, Key, CheckCircle2, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Play, Square, Save, CheckCircle2, Volume2, ShieldCheck } from 'lucide-react';
 
 export default function VoiceStudioView({ 
   config, 
   setConfig, 
   onSave 
 }) {
-  const [testText, setTestText] = useState('Namaste! Sri Sri Plywood me aapka swagat hai. Main aapki exact cloned aawaz me bol raha hoon!');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isPlayingTest, setIsPlayingTest] = useState(false);
-  const [fetchedVoices, setFetchedVoices] = useState([]);
-  const [isFetchingVoices, setIsFetchingVoices] = useState(false);
-  const [fetchError, setFetchError] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [testText, setTestText] = useState('Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja bol rahi hoon.');
+  const [freeVoices, setFreeVoices] = useState([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState('');
 
-  // 1-Click Auto-Fetch all voices directly from the user's ElevenLabs account!
-  const fetchMyElevenLabsVoices = async () => {
-    if (!config.elevenLabsApiKey) {
-      alert('Pehle apni ElevenLabs API Key enter karein.');
+  // Built-in curated 100% Free Voices (No API keys needed)
+  const defaultFreeOptions = [
+    { id: 'free-1', name: 'Pooja (Natural Hindi Female)', lang: 'hi-IN', desc: '100% Free · Soft & polite voice for Sri Sri Plywood calls' },
+    { id: 'free-2', name: 'Kavita (Professional Expressive Female)', lang: 'hi-IN', desc: '100% Free · Clear Indian accent for retail & wholesale sales' },
+    { id: 'free-3', name: 'Amit (Indian Business Male)', lang: 'hi-IN', desc: '100% Free · Calm & authoritative contractor tone' },
+    { id: 'free-4', name: 'Rohan (Indian English & Hinglish)', lang: 'en-IN', desc: '100% Free · Fast corporate sales tone' }
+  ];
+
+  useEffect(() => {
+    // Load free voices installed in browser
+    const loadVoices = () => {
+      if ('speechSynthesis' in window) {
+        const available = window.speechSynthesis.getVoices();
+        const hindiOrIndian = available.filter(v => v.lang.includes('hi') || v.lang.includes('IN'));
+        setFreeVoices(hindiOrIndian.length > 0 ? hindiOrIndian : available.slice(0, 5));
+      }
+    };
+
+    loadVoices();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  const handlePlayFreeVoice = (voiceId, sampleText) => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (isPlaying) {
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
       return;
     }
 
-    setIsFetchingVoices(true);
-    setFetchError('');
+    const utterance = new SpeechSynthesisUtterance(sampleText || testText);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.05;
 
-    try {
-      const response = await fetch('https://api.elevenlabs.io/v1/voices', {
-        method: 'GET',
-        headers: {
-          'xi-api-key': config.elevenLabsApiKey.trim()
-        }
-      });
+    // Pick selected free voice
+    const available = window.speechSynthesis.getVoices();
+    const match = available.find(v => v.voiceURI === voiceId || v.lang.includes('hi') || v.lang.includes('IN'));
+    if (match) utterance.voice = match;
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.detail?.message || `Invalid API Key (HTTP ${response.status})`);
-      }
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
 
-      const data = await response.json();
-      const voicesList = data.voices || [];
-      setFetchedVoices(voicesList);
-
-      if (voicesList.length > 0) {
-        // Auto select the first cloned voice or first available voice
-        const cloned = voicesList.find(v => v.category === 'cloned') || voicesList[0];
-        setConfig({
-          ...config,
-          customVoiceId: cloned.voice_id,
-          voicePreset: cloned.name
-        });
-      }
-      setIsFetchingVoices(false);
-    } catch (err) {
-      setIsFetchingVoices(false);
-      setFetchError(err.message);
-      alert('API Key check failed: ' + err.message);
-    }
+    setIsPlaying(true);
+    window.speechSynthesis.speak(utterance);
   };
 
-  // Test ElevenLabs Dynamic Voice
-  const testElevenLabsClonedVoice = async () => {
-    if (!config.elevenLabsApiKey || !config.customVoiceId) {
-      alert('Pehle ElevenLabs API Key aur Voice ID select karein.');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${config.customVoiceId.trim()}`, {
-        method: 'POST',
-        headers: {
-          'xi-api-key': config.elevenLabsApiKey.trim(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: testText,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.85
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        const errMsg = errBody?.detail?.message || `HTTP ${response.status}`;
-        throw new Error(errMsg);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-
-      setIsGenerating(false);
-      setIsPlayingTest(true);
-
-      audio.onended = () => setIsPlayingTest(false);
-      audio.onerror = () => setIsPlayingTest(false);
-
-      audio.play();
-    } catch (err) {
-      setIsGenerating(false);
-      alert(`Voice Test Failed: ${err.message}\n\nTip: "Fetch My Voices" button daba kar valid voice select karein.`);
-    }
+  const selectFreeVoice = (opt) => {
+    setConfig({
+      ...config,
+      voicePreset: opt.name,
+      selectedFreeId: opt.id
+    });
+    setSelectedVoiceUri(opt.id);
   };
 
   return (
@@ -111,13 +75,13 @@ export default function VoiceStudioView({
       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Real AI Voice Cloning Engine</span>
+            <span>100% Free AI Voices</span>
             <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded border border-emerald-500/20">
-              ElevenLabs Connected
+              Zero Cost · No API Key Needed
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Aapki aawaz clone hokar AI ke <strong>har naye dialogue ko real-time me generate</strong> karegi.
+            Koi payment ya API key ki zaroorat nahi hai. Niche di gayi free voices me se select karein.
           </p>
         </div>
 
@@ -126,145 +90,85 @@ export default function VoiceStudioView({
           className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-sm"
         >
           <Save className="h-3.5 w-3.5" />
-          <span>Save Voice Settings</span>
+          <span>Save Voice</span>
         </button>
       </div>
 
-      <div className="space-y-5">
-        {/* ElevenLabs Connection Form */}
-        <div className="rounded-xl bg-slate-900 border border-emerald-500/40 p-5 space-y-4 shadow-xl">
+      <div className="space-y-4">
+        {/* Curated Free Voice Cards */}
+        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Key className="h-4 w-4 text-emerald-400" />
-              ElevenLabs Account Sync (1-Click Voice Selector)
+              <Sparkles className="h-4 w-4 text-emerald-400" />
+              Available Free AI Voices for Sri Sri Plywood
             </h2>
-            <a 
-              href="https://elevenlabs.io" 
-              target="_blank" 
-              rel="noreferrer"
-              className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-            >
-              <span>ElevenLabs Dashboard</span>
-              <ExternalLink className="h-3 w-3" />
-            </a>
+            <span className="text-xs text-slate-400">Click to Select</span>
           </div>
 
-          <div className="space-y-4">
-            {/* Step 1: API Key Input with Fetch Button */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300 block">
-                ElevenLabs API Key
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  placeholder="sk_..."
-                  value={config.elevenLabsApiKey || ''}
-                  onChange={(e) => setConfig({ ...config, elevenLabsApiKey: e.target.value })}
-                  className="flex-1 bg-slate-950 border border-slate-700 text-white text-xs rounded-lg px-3 py-2.5 outline-none focus:border-emerald-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={fetchMyElevenLabsVoices}
-                  disabled={isFetchingVoices || !config.elevenLabsApiKey}
-                  className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer shrink-0"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {defaultFreeOptions.map((opt) => {
+              const isSelected = config.voicePreset?.includes(opt.name.split(' ')[0]) || selectedVoiceUri === opt.id;
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => selectFreeVoice(opt)}
+                  className={`p-4 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                    isSelected 
+                      ? 'bg-emerald-600/15 border-emerald-500 text-white shadow-md' 
+                      : 'bg-slate-950 border-slate-800/80 text-slate-300 hover:border-slate-700'
+                  }`}
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isFetchingVoices ? 'animate-spin' : ''}`} />
-                  <span>{isFetchingVoices ? 'Fetching...' : 'Fetch My Voices'}</span>
-                </button>
-              </div>
-              <span className="text-[10px] text-slate-400 block">
-                API Key daal kar <strong>"Fetch My Voices"</strong> dabayein, yeh aapke account ki saari real voices dhoondh lega.
-              </span>
-            </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs text-white">{opt.name}</span>
+                      {isSelected && (
+                        <span className="text-[9px] bg-emerald-500 text-slate-950 font-bold px-1.5 py-0.2 rounded">
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">{opt.desc}</p>
+                  </div>
 
-            {/* Step 2: Auto-Fetched Voice Dropdown */}
-            {fetchedVoices.length > 0 ? (
-              <div className="space-y-1.5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                <label className="text-xs font-semibold text-emerald-300 block flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                  Select From Your ElevenLabs Voices ({fetchedVoices.length} Found)
-                </label>
-                <select
-                  value={config.customVoiceId}
-                  onChange={(e) => {
-                    const selected = fetchedVoices.find(v => v.voice_id === e.target.value);
-                    setConfig({
-                      ...config,
-                      customVoiceId: e.target.value,
-                      voicePreset: selected ? selected.name : config.voicePreset
-                    });
-                  }}
-                  className="w-full bg-slate-950 border border-emerald-500/60 text-white text-xs rounded-lg p-2.5 outline-none focus:border-emerald-400 font-medium"
-                >
-                  {fetchedVoices.map((v) => (
-                    <option key={v.voice_id} value={v.voice_id}>
-                      {v.name} {v.category === 'cloned' ? '⭐ (Your Cloned Voice)' : `(${v.category})`} — ID: {v.voice_id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              /* Fallback Manual Voice ID input */
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300 block">
-                  Aapki Cloned Voice ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-                  value={config.customVoiceId || ''}
-                  onChange={(e) => setConfig({ ...config, customVoiceId: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-lg p-2.5 outline-none focus:border-emerald-500 font-mono"
-                />
-                <div className="flex gap-2 pt-1 text-[11px] text-slate-400">
-                  <span>Common working voice:</span>
                   <button
                     type="button"
-                    onClick={() => setConfig({ ...config, customVoiceId: '21m00Tcm4TlvDq8ikWAM' })}
-                    className="text-indigo-400 hover:underline font-mono"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayFreeVoice(opt.id, `Namaste! Sri Sri Plywood me aapka swagat hai. Main ${opt.name.split(' ')[0]} bol rahi hoon.`);
+                    }}
+                    className="h-8 w-8 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition border border-slate-700 shrink-0 ml-3 cursor-pointer"
+                    title="Play Sample"
                   >
-                    21m00Tcm4TlvDq8ikWAM (Rachel)
-                  </button>
-                  <span>|</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfig({ ...config, customVoiceId: 'JBFqnCBsd6RMkjVDRZzb' })}
-                    className="text-indigo-400 hover:underline font-mono"
-                  >
-                    JBFqnCBsd6RMkjVDRZzb (George)
+                    {isPlaying ? <Square className="h-3 w-3 fill-current" /> : <Play className="h-3 w-3 fill-current" />}
                   </button>
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
+        </div>
 
-          {/* Test Custom Sentence Box */}
-          <div className="pt-3 border-t border-slate-800 space-y-2">
-            <span className="text-xs font-medium text-slate-300 block">
-              Test Sentence (AI ko is aawaz me bolte huye sunein):
-            </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={testText}
-                onChange={(e) => setTestText(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
-              />
-              <button
-                type="button"
-                onClick={testElevenLabsClonedVoice}
-                disabled={isGenerating || !config.customVoiceId}
-                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer shrink-0"
-              >
-                {isGenerating ? <Sparkles className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-                <span>{isGenerating ? 'Generating Audio...' : 'Test In My Voice'}</span>
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              ⚡ Ye button dabate hi ElevenLabs real-time me naye shabd generate karke bolega!
-            </p>
+        {/* Short Greeting Preview */}
+        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-200">Opening Greeting Line (Sri Sri Plywood)</h2>
+            <button
+              type="button"
+              onClick={() => handlePlayFreeVoice(selectedVoiceUri, config.greeting)}
+              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium cursor-pointer"
+            >
+              <Play className="h-3 w-3 fill-current" />
+              <span>Test Selected Voice</span>
+            </button>
           </div>
+          <textarea
+            rows={2}
+            value={config.greeting}
+            onChange={(e) => setConfig({ ...config, greeting: e.target.value })}
+            className="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-lg p-3 outline-none focus:border-indigo-500"
+          />
+          <p className="text-[11px] text-slate-400">
+            Call pick hone par AI sabse pehle ye line bolega, aur phir <strong>aapke bolne ka intezaar karega</strong>.
+          </p>
         </div>
       </div>
     </div>
