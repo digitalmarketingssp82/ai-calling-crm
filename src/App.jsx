@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LeadFilterView from './components/LeadFilterView';
 import HandoverSettingsView from './components/HandoverSettingsView';
@@ -13,7 +13,7 @@ import {
 import { CheckCircle2, MessageSquare } from 'lucide-react';
 
 export default function App() {
-  const [activeSubTab, setActiveSubTab] = useState('handover');
+  const [activeSubTab, setActiveSubTab] = useState('simulator'); // open simulator or user choice
 
   // Load persisted real data from localStorage
   const [rules, setRules] = useState(() => {
@@ -43,6 +43,23 @@ export default function App() {
     }
   });
 
+  // Custom Cloned Audio File (Persistent across app)
+  const [customVoiceAudio, setCustomVoiceAudio] = useState(() => {
+    try {
+      return localStorage.getItem('crm_custom_voice_audio') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [customVoiceFileName, setCustomVoiceFileName] = useState(() => {
+    try {
+      return localStorage.getItem('crm_custom_voice_filename') || '';
+    } catch {
+      return '';
+    }
+  });
+
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg, icon = CheckCircle2) => {
@@ -62,7 +79,7 @@ export default function App() {
 
   const handleSaveVoice = () => {
     localStorage.setItem('crm_voice_config', JSON.stringify(voiceConfig));
-    showToast(`Voice settings saved!`);
+    showToast(`Voice settings saved! Using ${customVoiceFileName ? customVoiceFileName : 'Selected Voice'}`);
   };
 
   const handleTestWhatsApp = () => {
@@ -102,7 +119,10 @@ export default function App() {
             rules={rules}
             handoverConfig={handoverConfig}
             voiceConfig={voiceConfig}
+            customVoiceAudio={customVoiceAudio}
+            customVoiceFileName={customVoiceFileName}
             onTriggerWhatsApp={handleTestWhatsApp}
+            onNavigateToVoice={() => setActiveSubTab('voice')}
           />
         )}
 
@@ -118,6 +138,10 @@ export default function App() {
           <VoiceStudioView 
             config={voiceConfig} 
             setConfig={setVoiceConfig} 
+            customVoiceAudio={customVoiceAudio}
+            setCustomVoiceAudio={setCustomVoiceAudio}
+            customVoiceFileName={customVoiceFileName}
+            setCustomVoiceFileName={setCustomVoiceFileName}
             onSave={handleSaveVoice} 
           />
         )}
@@ -129,9 +153,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Minimal Footer */}
       <footer className="border-t border-slate-900 py-3 text-center text-[11px] text-slate-500">
-        AI Calling Department · Clean Minimal CRM
+        AI Calling Department · Sri Sri Plywood (Mohali Tricity)
       </footer>
     </div>
   );

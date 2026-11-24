@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, PhoneCall, PhoneForwarded, PhoneOff, MessageSquare, 
-  MapPin, CheckCircle2, AlertCircle, Bot, User 
+  MapPin, CheckCircle2, AlertCircle, Bot, User, Mic, Volume2, Music, Upload 
 } from 'lucide-react';
 
-export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, onTriggerWhatsApp }) {
+export default function LiveSimulatorView({ 
+  rules, 
+  handoverConfig, 
+  voiceConfig, 
+  customVoiceAudio,
+  customVoiceFileName,
+  onTriggerWhatsApp,
+  onNavigateToVoice
+}) {
   const [customerName, setCustomerName] = useState('Rajesh Contractor');
   const [customerPhone, setCustomerPhone] = useState('+91 98XXXXXXXX');
   const [siteLocation, setSiteLocation] = useState('Sector 82, Mohali');
@@ -14,10 +22,51 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
   const [callState, setCallState] = useState('idle'); // idle, ringing, connected, transferring, bridged, ended
   const [messages, setMessages] = useState([]);
   const [executiveAlertReceived, setExecutiveAlertReceived] = useState(false);
+  const [isPlayingMyAudio, setIsPlayingMyAudio] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const activeAudioRef = useRef(null);
 
-  const speakText = (text, onEnd) => {
+  // Play audio turn: PRIORITIZE USER'S UPLOADED AUDIO FILE!
+  const playAiVoiceTurn = (text, onEnd) => {
+    // 1. If user uploaded a custom voice file, ALWAYS play their uploaded voice file!
+    if (customVoiceAudio) {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+      }
+
+      try {
+        const audio = new Audio(customVoiceAudio);
+        activeAudioRef.current = audio;
+        setIsPlayingMyAudio(true);
+
+        audio.onended = () => {
+          setIsPlayingMyAudio(false);
+          if (onEnd) onEnd();
+        };
+
+        audio.onerror = () => {
+          setIsPlayingMyAudio(false);
+          fallbackBrowserSpeech(text, onEnd);
+        };
+
+        audio.play().catch(() => {
+          setIsPlayingMyAudio(false);
+          fallbackBrowserSpeech(text, onEnd);
+        });
+        return;
+      } catch (err) {
+        fallbackBrowserSpeech(text, onEnd);
+        return;
+      }
+    }
+
+    // 2. Fallback to browser speech only if no file is uploaded
+    fallbackBrowserSpeech(text, onEnd);
+  };
+
+  const fallbackBrowserSpeech = (text, onEnd) => {
     if (!('speechSynthesis' in window)) {
       if (onEnd) onEnd();
       return;
@@ -25,7 +74,6 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.0;
-    utterance.pitch = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
     const match = voices.find(v => (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google')) && (v.lang.includes('hi') || v.lang.includes('IN')));
@@ -39,68 +87,67 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
 
   const startVoiceCall = () => {
     window.speechSynthesis?.cancel();
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+    }
+
     setCallState('ringing');
     setMessages([]);
     setExecutiveAlertReceived(false);
 
     setTimeout(() => {
       setCallState('connected');
-      // Short 1-sentence opening
       const opening = `Namaste! Sri Sri Plywood me aapka swagat hai. Main Pooja baat kar rahi hoon, bataiye kis item ki inquiry thi?`;
       
       setMessages([{ speaker: 'ai', text: opening }]);
-      speakText(opening, () => {
+      playAiVoiceTurn(opening, () => {
         setTimeout(runShortConversationalFlow, 1000);
       });
     }, 800);
   };
 
-  // Short, punchy, answer-first natural dialogue
   const runShortConversationalFlow = () => {
-    // 1. Customer asks rate directly
+    // 1. Customer asks rate
     const cust1 = `19mm marine grade 710 plywood ka kya rate chal raha hai?`;
     setMessages(prev => [...prev, { speaker: 'lead', text: cust1 }]);
 
     setTimeout(() => {
-      // 2. AI answers rate FIRST (no beating around the bush) + asks 1 short location question
+      // 2. AI answers rate + location
       const aiReply1 = `Sir 19mm marine IS 710 approx ₹88 se ₹95 per square foot padega. Aapki site Tricity me kahan par chal rahi hai?`;
       setMessages(prev => [...prev, { speaker: 'ai', text: aiReply1 }]);
 
-      speakText(aiReply1, () => {
+      playAiVoiceTurn(aiReply1, () => {
         setTimeout(() => {
           if (isOutsideTricity) {
-            // Outside Tricity Scenario
             const custLocOut = `Hamari site Ludhiana me chal rahi hai.`;
             setMessages(prev => [...prev, { speaker: 'lead', text: custLocOut }]);
 
             setTimeout(() => {
               const aiOutside = `Sir hum delivery sirf Mohali Tricity area me hi karte hain. Agar aap transport khud arrange kar sakein, toh hum dispatch karwa denge.`;
               setMessages(prev => [...prev, { speaker: 'ai', text: aiOutside }]);
-              speakText(aiOutside, () => setCallState('ended'));
+              playAiVoiceTurn(aiOutside, () => setCallState('ended'));
             }, 1200);
             return;
           }
 
-          // Inside Tricity (Mohali) Scenario
           const custLocIn = `Hamari site ${siteLocation} me hai.`;
           setMessages(prev => [...prev, { speaker: 'lead', text: custLocIn }]);
 
           setTimeout(() => {
-            // 3. AI confirms location & asks quantity in just 1 short line
             const aiReply2 = `Sahi hai sir, Mohali me toh direct delivery ho jayegi. Lagbhag kitni sheets ki requirement hai aapko?`;
             setMessages(prev => [...prev, { speaker: 'ai', text: aiReply2 }]);
 
-            speakText(aiReply2, () => {
+            playAiVoiceTurn(aiReply2, () => {
               setTimeout(() => {
                 const custQty = `Lagbhag ${quantitySheets} sheets chahiye.`;
                 setMessages(prev => [...prev, { speaker: 'lead', text: custQty }]);
 
                 setTimeout(() => {
-                  // 4. AI closes and transfers call in 1 punchy sentence
                   const aiTransfer = `Done sir! ${quantitySheets} sheets par wholesale rate mil jayega. Main aapki call abhi hamare owner se connect kar rahi hoon.`;
                   setMessages(prev => [...prev, { speaker: 'ai', text: aiTransfer }]);
 
-                  speakText(aiTransfer, () => {
+                  playAiVoiceTurn(aiTransfer, () => {
                     setCallState('transferring');
                     setExecutiveAlertReceived(true);
                     if (onTriggerWhatsApp) onTriggerWhatsApp();
@@ -120,7 +167,12 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
 
   const endCall = () => {
     window.speechSynthesis?.cancel();
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+    }
     setCallState('idle');
+    setIsPlayingMyAudio(false);
   };
 
   useEffect(() => {
@@ -133,13 +185,10 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Sri Sri Plywood · Mohali Tricity Engine</span>
-            <span className="text-[10px] bg-indigo-500/10 text-indigo-400 font-semibold px-2 py-0.5 rounded border border-indigo-500/20">
-              Short Natural Turns
-            </span>
+            <span>Sri Sri Plywood · Live Call Test</span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            AI direct rate batayega aur sirf <strong>Mohali / Tricity</strong> ki delivery check karke call connect karega.
+            Test karein ki AI aapse call par kaise baat karega.
           </p>
         </div>
 
@@ -157,10 +206,40 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
             className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-sm"
           >
             <PhoneCall className="h-3.5 w-3.5" />
-            <span>Start Short-Turn Call</span>
+            <span>Start Test Call</span>
           </button>
         )}
       </div>
+
+      {/* Voice Status Indicator Banner */}
+      {customVoiceAudio ? (
+        <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-300 font-medium">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span>
+              Voice Source: <strong>Aapki Uploaded Audio File Active Hai ({customVoiceFileName || 'Custom Voice'})</strong>
+            </span>
+          </div>
+          <span className="text-[10px] bg-emerald-500 text-slate-950 px-2 py-0.5 rounded font-bold">
+            NO ROBOTIC VOICE
+          </span>
+        </div>
+      ) : (
+        <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs flex items-center justify-between text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+            <span>
+              Aapne abhi custom audio upload nahi ki hai, isliye browser default aawaz bol raha hai.
+            </span>
+          </div>
+          <button
+            onClick={onNavigateToVoice}
+            className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-3 py-1 rounded transition cursor-pointer"
+          >
+            Upload My Audio File Now
+          </button>
+        </div>
+      )}
 
       {/* Tricity Settings Bar */}
       <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
@@ -178,7 +257,7 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
           <div>
             <label className="text-slate-400 block mb-1 flex items-center gap-1 text-emerald-400 font-medium">
               <MapPin className="h-3.5 w-3.5" />
-              <span>Site Location (Tricity Only)</span>
+              <span>Site Location (Mohali Tricity Only)</span>
             </label>
             <select
               value={isOutsideTricity ? 'outside' : siteLocation}
@@ -197,7 +276,7 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
               <option value="Zirakpur (VIP Road)">Zirakpur VIP Road (Tricity Delivery ✅)</option>
               <option value="Panchkula Sector 20">Panchkula Sector 20 (Tricity Delivery ✅)</option>
               <option value="Kharar (Landran Road)">Kharar (Tricity Delivery ✅)</option>
-              <option value="outside">Ludhiana / Outside Tricity (Test Rejection ❌)</option>
+              <option value="outside">Ludhiana / Outside (Test Rejection ❌)</option>
             </select>
           </div>
 
@@ -223,15 +302,20 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
           <div className="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${callState === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'}`} />
-              Pooja (Sri Sri Plywood AI)
+              <span>Voice: {customVoiceFileName ? `Playing "${customVoiceFileName}"` : 'Default Voice'}</span>
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">Short Conversational Turns</span>
+            {isPlayingMyAudio && (
+              <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+                <Music className="h-3 w-3" />
+                <span>Playing Your Custom Audio...</span>
+              </span>
+            )}
           </div>
 
           <div className="p-4 h-64 overflow-y-auto space-y-2.5 bg-slate-950/70">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
-                <span>Click "Start Short-Turn Call" above to test natural conversation</span>
+                <span>Click "Start Test Call" above to test the call</span>
               </div>
             )}
 
@@ -246,7 +330,7 @@ export default function LiveSimulatorView({ rules, handoverConfig, voiceConfig, 
                     : 'bg-emerald-600 text-white font-medium'
                 }`}>
                   <span className="block text-[10px] font-semibold opacity-60 mb-0.5">
-                    {msg.speaker === 'ai' ? 'Pooja (AI)' : customerName}
+                    {msg.speaker === 'ai' ? (customVoiceFileName ? 'AI (Your Cloned Voice)' : 'Pooja (AI)') : customerName}
                   </span>
                   {msg.text}
                 </div>
